@@ -1,4 +1,3 @@
-# importing libraries
 import streamlit as st
 import datetime
 import pandas as pd
@@ -18,7 +17,9 @@ st.title('Calculate Beta and Return for Individual Stock')
 # getting input from user
 col1, col2 = st.columns([1, 1])
 with col1:
-    stock = st.selectbox("Choose a stock", ('TSLA', 'AAPL', 'NFLX', 'MGM', 'MSFT', 'AMZN', 'NVDA', 'GOOGL'))
+    stock = st.selectbox("Choose a stock", 
+        ('TSLA', 'AAPL', 'NFLX', 'MGM', 'MSFT', 'AMZN', 'NVDA', 'GOOGL')
+    )
 with col2:
     year = st.number_input("Number of Years", 1, 10)
 
@@ -26,44 +27,54 @@ try:
     # fetching S&P 500 data
     end = datetime.date.today()
     start = datetime.date(end.year - year, end.month, end.day)
-    SP500 = yf.download('^GSPC', start=start, end=end)[['Close']]
-    SP500.rename(columns={'Close': 'sp500'}, inplace=True)
-    SP500.reset_index(inplace=True)
+    sp500_df = yf.download('^GSPC', start=start, end=end, progress=False)[['Close']].reset_index()
+    sp500_df.columns = ['Date', 'sp500']
 
-    # fetching stock data
-    stock_df = yf.download(stock, start=start, end=end)[['Close']]
-    stock_df.rename(columns={'Close': stock}, inplace=True)
-    stock_df.reset_index(inplace=True)
+    # fetching chosen stock data
+    stock_df = yf.download(stock, start=start, end=end, progress=False)[['Close']].reset_index()
+    stock_df.columns = ['Date', stock]
 
-    # merging with SP500 data
-    SP500['Date'] = pd.to_datetime(SP500['Date'])
-    stock_df['Date'] = pd.to_datetime(stock_df['Date'])
-    merged_df = pd.merge(stock_df, SP500, on='Date', how='inner')
+    # merging the two dataframes
+    merged_df = pd.merge(stock_df, sp500_df, on='Date', how='inner')
+    merged_df.dropna(inplace=True)
+    merged_df.sort_values(by='Date', inplace=True)
+    merged_df.reset_index(drop=True, inplace=True)
 
     # calculating daily return
     stocks_daily_return = capm_functions.daily_return(merged_df)
 
     # calculate beta and alpha
-    beta, alpha = capm_functions.calculate_beta(stocks_daily_return, stock)
+    beta_val, alpha_val = capm_functions.calculate_beta(stocks_daily_return, stock)
 
-    # risk-free rate of return
-    rf = 0
+    # assume risk-free rate of return
+    rf = 0.0
 
-    # market portfolio return
+    # market portfolio return (annualized)
     rm = stocks_daily_return['sp500'].mean() * 252
 
-    # calculate return
-    return_value = round(rf + (beta * (rm - rf)), 2)
+    # calculate return using CAPM
+    return_value = round(rf + beta_val * (rm - rf), 2)
 
     # showing results
-    st.markdown(f'### Beta : {round(beta, 2)}')
-    st.markdown(f'### Return : {return_value}')
+    st.markdown(f'### Beta : {round(beta_val, 2)}')
+    st.markdown(f'### Return (CAPM) : {return_value}')
 
     # plotting scatter and regression line
-    fig = px.scatter(stocks_daily_return, x='sp500', y=stock, title=stock)
+    # ensure data is float for plotting
+    x = stocks_daily_return['sp500'].astype(float)
+    y = stocks_daily_return[stock].astype(float)
+
+    fig = px.scatter(
+        x=x, 
+        y=y, 
+        title=f"{stock} vs S&P 500 Daily Returns",
+        labels={'x': 'S&P 500 Daily Return (%)', 'y': f'{stock} Daily Return (%)'}
+    )
+    # regression line: y = beta_val * x + alpha_val
+    reg_y = beta_val * x + alpha_val
     fig.add_scatter(
-        x=stocks_daily_return['sp500'],
-        y=beta * stocks_daily_return['sp500'] + alpha,
+        x=x, 
+        y=reg_y, 
         mode='lines',
         name='Regression Line'
     )
