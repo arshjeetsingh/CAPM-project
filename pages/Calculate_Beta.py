@@ -59,8 +59,14 @@ try:
     st.markdown(f'### Beta : {round(beta, 2)}')
     st.markdown(f'### Return : {return_value}')
 
+    # plotting scatter and regression line
     fig = px.scatter(stocks_daily_return, x='sp500', y=stock, title=stock)
-    fig.add_scatter(x=stocks_daily_return['sp500'], y=beta * stocks_daily_return['sp500'] + alpha, mode='lines', name='Regression Line')
+    fig.add_scatter(
+        x=stocks_daily_return['sp500'],
+        y=beta * stocks_daily_return['sp500'] + alpha,
+        mode='lines',
+        name='Regression Line'
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 except Exception as e:
