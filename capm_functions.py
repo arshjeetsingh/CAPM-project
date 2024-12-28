@@ -36,7 +36,7 @@ def daily_return(df):
 
 # Function to calculate beta
 def calculate_beta(stocks_daily_return, stock):
-    x = stocks_daily_return['sp500'].values.flatten()  # Ensure x is 1D
-    y = stocks_daily_return[stock].values.flatten()  # Ensure y is 1D
+    x = stocks_daily_return['sp500'].values.ravel()  # Use ravel() to ensure 1D array
+    y = stocks_daily_return[stock].values.ravel()  # Use ravel() to ensure 1D array
     b, a = np.polyfit(x, y, 1)  # Perform linear regression
     return b, a
