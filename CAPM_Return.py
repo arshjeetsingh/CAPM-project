@@ -44,8 +44,8 @@ try:
     # merging with SP500 data
     SP500['Date'] = pd.to_datetime(SP500['Date'])
     stocks_df['Date'] = pd.to_datetime(stocks_df['Date'])
-    SP500 = SP500.set_index('Date').reset_index()
-    stocks_df = stocks_df.set_index('Date').reset_index()
+    SP500 = SP500.reset_index(drop=True)  # Flatten index
+    stocks_df = stocks_df.reset_index(drop=True)  # Flatten index
     stocks_df = pd.merge(stocks_df, SP500, on='Date', how='inner')
 
     col1, col2 = st.columns([1, 1])
