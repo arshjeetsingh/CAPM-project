@@ -1,6 +1,5 @@
 # importing libraries
 import streamlit as st
-import pandas_datareader.data as web
 import datetime
 import pandas as pd
 import yfinance as yf
@@ -9,7 +8,7 @@ import capm_functions
 # setting page config
 st.set_page_config(
     page_title="Calculate Beta",
-    page_icon="chart_with_upwards_trend",
+    page_icon="📈",
     layout="wide",
 )
 
@@ -28,22 +27,24 @@ with col2:
     year = st.number_input("Number of Years", 1, 10)
 
 try:
-    # downloading data for SP500
+    # fetching S&P 500 data
     end = datetime.date.today()
-    start = datetime.date(datetime.date.today().year - year, datetime.date.today().month, datetime.date.today().day)
-    SP500 = web.DataReader(['sp500'], 'fred', start, end)
+    start = datetime.date(end.year - year, end.month, end.day)
+    SP500 = yf.download('^GSPC', start=start, end=end)[['Close']]
+    SP500.rename(columns={'Close': 'sp500'}, inplace=True)
+    SP500.reset_index(inplace=True)
 
-    # downloading data for the stock
+    # fetching stock data
     stocks_df = pd.DataFrame()
     for stock in stocks_list:
-        data = yf.download(stock, period=f'{year}y')
+        data = yf.download(stock, start=start, end=end)
         stocks_df[f'{stock}'] = data['Close']
     stocks_df.reset_index(inplace=True)
-    SP500.reset_index(inplace=True)
-    SP500.columns = ['Date', 'sp500']
-    stocks_df['Date'] = stocks_df['Date'].astype('datetime64[ns]')
-    stocks_df['Date'] = stocks_df['Date'].apply(lambda x: str(x)[:10])
+    stocks_df.rename(columns={'Date': 'Date'}, inplace=True)
+
+    # merging with SP500 data
     stocks_df['Date'] = pd.to_datetime(stocks_df['Date'])
+    SP500['Date'] = pd.to_datetime(SP500['Date'])
     stocks_df = pd.merge(stocks_df, SP500, on='Date', how='inner')
 
     col1, col2 = st.columns([1, 1])
@@ -70,39 +71,30 @@ try:
     alpha = {}
 
     for i in stocks_daily_return.columns:
-        # Ignoring the date and S&P500 Columns
         if i != 'Date' and i != 'sp500':
-            # calculate beta and alpha for all stocks
             b, a = capm_functions.calculate_beta(stocks_daily_return, i)
             beta[i] = b
             alpha[i] = a
 
     col1, col2 = st.columns([1, 1])
 
-    beta_df = pd.DataFrame(columns=['Stock', 'Beta Value'])
-    beta_df['Stock'] = beta.keys()
-    beta_df['Beta Value'] = [str(round(i, 2)) for i in beta.values()]
+    beta_df = pd.DataFrame({'Stock': list(beta.keys()), 'Beta Value': [round(b, 2) for b in beta.values()]})
 
     with col1:
         st.markdown('### Calculated Beta Value ')
         st.dataframe(beta_df, use_container_width=True)
 
     # Calculate return for any security using CAPM
-    rf = 0  # risk free rate of return
+    rf = 0  # risk-free rate of return
     rm = stocks_daily_return['sp500'].mean() * 252  # market portfolio return
-    return_df = pd.DataFrame()
-    stock_list = []
-    return_value = []
-    for stock, value in beta.items():
-        stock_list.append(stock)
-        # calculate return
-        return_value.append(str(round(rf + (value * (rm - rf)), 2)))
-    return_df['Stock'] = stock_list
-    return_df['Return Value'] = return_value
+    return_df = pd.DataFrame({
+        'Stock': list(beta.keys()),
+        'Return Value': [round(rf + (beta[stock] * (rm - rf)), 2) for stock in beta.keys()]
+    })
 
     with col2:
         st.markdown('### Calculated Return using CAPM ')
         st.dataframe(return_df, use_container_width=True)
 
-except:
-    st.write("Please select valid stocks and years.")
+except Exception as e:
+    st.error(f"An error occurred: {e}")
